@@ -29,7 +29,6 @@ import com.google.android.gms.tasks.TaskExecutors
 import com.google.android.gms.tasks.Tasks
 import com.google.android.odml.image.BitmapMlImageBuilder
 import com.google.android.odml.image.ByteBufferMlImageBuilder
-import com.google.android.odml.image.MediaMlImageBuilder
 import com.google.android.odml.image.MlImage
 import com.google.mlkit.common.MlKitException
 import com.google.mlkit.vision.common.InputImage
@@ -163,6 +162,18 @@ abstract class VisionProcessorBase<T> protected constructor(context: Context) : 
             frameStartMs
         )
             .addOnSuccessListener(executor) { results: T -> processLatestImage(graphicOverlay) }
+    }
+
+    fun processBitmap(bitmap: Bitmap, onSuccess: (T) -> Unit) {
+        if (isShutdown) {
+            return
+        }
+
+        val inputImage = InputImage.fromBitmap(bitmap, 0)
+        detectInImage(inputImage)
+            .addOnSuccessListener(executor) { text: T ->
+                onSuccess(text)
+            }
     }
 
     @ExperimentalGetImage
