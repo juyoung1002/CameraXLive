@@ -46,5 +46,9 @@ dependencies {
     implementation 'com.google.mlkit:text-recognition-korean:16.0.0-beta6'
     implementation 'com.google.mlkit:camera:16.0.0-beta3'
 
+    implementation 'io.reactivex.rxjava3:rxandroid:3.0.0'
+    implementation 'io.reactivex.rxjava3:rxjava:3.0.6'
+    implementation 'io.reactivex.rxjava3:rxkotlin:3.0.0'
+
     implementation 'com.opencsv:opencsv:4.4'
 }
