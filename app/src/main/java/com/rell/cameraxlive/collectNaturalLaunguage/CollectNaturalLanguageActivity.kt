@@ -79,13 +79,14 @@ class CollectNaturalLanguageActivity : AppCompatActivity() {
 
     private fun collectNaturalLanguage(index: Int) {
         disposable?.dispose()
+        val startTime = System.currentTimeMillis()
 
         val (name, url) = contents[index]
         collectNatural(index, name, url)
             .subscribeOn(Schedulers.io())
             .observeOn(AndroidSchedulers.mainThread())
             .subscribe({ list ->
-                updateText("start index : ${index}, $name")
+                updateText("수집완료 : ${index}, $name \n소요시간 : ${System.currentTimeMillis() - startTime}")
                 csvHelper.writeAllData("$index", list.map { arrayOf(name, it) })
                 collectNaturalLanguage(index + 1)
             }, {
