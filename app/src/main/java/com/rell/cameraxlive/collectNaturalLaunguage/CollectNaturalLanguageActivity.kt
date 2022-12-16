@@ -21,16 +21,15 @@ import com.rell.cameraxlive.cvs.CsvHelper
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
 import io.reactivex.rxjava3.core.Observable
 import io.reactivex.rxjava3.core.Single
-import io.reactivex.rxjava3.functions.BiFunction
+import io.reactivex.rxjava3.disposables.Disposable
 import io.reactivex.rxjava3.schedulers.Schedulers
 import java.io.InputStreamReader
 import java.net.URL
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 
 
 class CollectNaturalLanguageActivity : AppCompatActivity() {
 
+    private var disposable: Disposable? = null
     private val uiHandler = Handler()
     private val imageProcessor: VisionProcessorBase<Text> by lazy {
         TextRecognitionProcessor(this, KoreanTextRecognizerOptions.Builder().build())
@@ -56,11 +55,13 @@ class CollectNaturalLanguageActivity : AppCompatActivity() {
 
     private lateinit var contents: List<Array<String>>
 
-    val executor = Executors.newFixedThreadPool(12)
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_collect_natural_language)
+
+        val inputStream = assets.open("product.csv")
+        val reader = CSVReader(InputStreamReader(inputStream))
+        contents = reader.readAll()
 
         createScaleType()
 
@@ -71,86 +72,37 @@ class CollectNaturalLanguageActivity : AppCompatActivity() {
         btnStart.setOnClickListener {
             updateText("자연어 수집을 시작합니다! ")
 
-            val inputStream = assets.open("product.csv")
-            val reader = CSVReader(InputStreamReader(inputStream))
-            contents = reader.readAll()
-
             val startIdx = editText.text.toString().toInt()
-            collectNaturalLanguage2(startIdx)
-//            collectNaturalLanguage(startIdx)
+            collectNaturalLanguage(startIdx)
         }
     }
 
-    private fun collectNaturalLanguage(startIdx: Int) {
-        Observable.interval(10, TimeUnit.SECONDS)
-            .take(contents.size.toLong())
-            .observeOn(AndroidSchedulers.mainThread())
-            .subscribe { index ->
-                Log.d("collectNatural", "start index : ${index + startIdx}")
-                val (name, url) = contents[index.toInt() + startIdx]
+    private fun collectNaturalLanguage(index: Int) {
+        disposable?.dispose()
 
-                updateText("start index : ${index + startIdx}, $name")
-                collectNatural(index.toInt() + startIdx, name, url)
-            }
-    }
-
-    private fun collectNaturalLanguage2(startIndex: Int) {
-        Observable
-            .fromIterable(contents.subList(startIndex, contents.size))
-            .zipWith(Observable.interval(10, TimeUnit.MILLISECONDS), BiFunction { t1, t2 -> t2 + startIndex to t1 })
-            .concatMap { pair ->
-                val (index, array) = pair
-                val (name, url) = array
-                collectNatural2(index.toInt(), name, url)
-                    .toObservable()
-                    .map { Triple(index, name, it) }
-            }
-            .observeOn(AndroidSchedulers.mainThread())
-            .subscribe({ triple ->
-                val (index, name, list) = triple
-                if (index.toInt() == -1) {
-                    return@subscribe
-                }
-                updateText("start index : ${index}, $name")
-                csvHelper.writeAllData("$index", list.map { arrayOf(name, it) })
-            }, {
-                Log.e("collectNatural", "error : ${it.message}")
-            })
-    }
-
-    private fun collectNatural(index: Int, name: String, url: String) {
-
-        val arrayList = arrayListOf<Array<String>>()
-        Observable.just("https://dev.img.hwahae.co.kr/$url")
-            .doOnNext {
-                Log.d("collectNatural", "start $index, thread : ${Thread.currentThread().name} name : $name")
-            }
-            .map(::loadBitmap)
-            .flatMap(::scaleBitmap)
-            .flatMap(::processBitmap)
+        val (name, url) = contents[index]
+        collectNatural(index, name, url)
             .subscribeOn(Schedulers.io())
             .observeOn(AndroidSchedulers.mainThread())
-            .subscribe({ sentence ->
-                arrayList.add(arrayOf(name, sentence))
-                if (arrayList.size == 100) {
-                    Log.d("collectNatural", "writeAllData($index, arrayList)")
-                    csvHelper.writeAllData("$index", arrayList)
-                }
-            }, { t ->
-                Log.d("collectNatural", "${t.message}")
+            .subscribe({ list ->
+                updateText("start index : ${index}, $name")
+                csvHelper.writeAllData("$index", list.map { arrayOf(name, it) })
+                collectNaturalLanguage(index + 1)
+            }, {
+                Log.e("collectNatural", "error : ${it.message}")
+                collectNaturalLanguage(index + 1)
             })
+            .also { this.disposable = it }
     }
 
-    private fun collectNatural2(index: Int, name: String, url: String): Single<MutableList<String>> {
+    private fun collectNatural(index: Int, name: String, url: String): Single<MutableList<String>> {
         return Observable.just("https://dev.img.hwahae.co.kr/$url")
             .doOnNext { Log.d("collectNatural", "start $index, thread : ${Thread.currentThread().name} name : $name") }
             .map(::loadBitmap)
-            .onErrorResumeNext { Observable.just(null) }
             .flatMap(::scaleBitmap)
             .flatMap(::processBitmap)
             .take(100)
             .toList()
-            .subscribeOn(Schedulers.from(executor))
     }
 
     private fun loadBitmap(imageUrl: String): Bitmap {
@@ -195,8 +147,8 @@ class CollectNaturalLanguageActivity : AppCompatActivity() {
                     val lineText = System.getProperty("line.separator")?.let { result.text.replace(it, " ") }
                     val sentence = lineText.toString()
                     emitter.onNext(sentence)
-                    emitter.onComplete()
                 }
+                emitter.onComplete()
             }
         }
     }
