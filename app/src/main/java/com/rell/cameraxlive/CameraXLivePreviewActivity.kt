@@ -4,6 +4,7 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Rect
 import android.os.Bundle
 import android.util.Log
 import android.view.View
@@ -220,24 +221,46 @@ class CameraXLivePreviewActivity : AppCompatActivity() {
         }
     }
 
+    private fun Rect.area(): Int {
+        return (bottom - top) * (right - left)
+    }
+
     private fun updateText(result: Text) {
-        if (result.text.isNotEmpty()) {
-            val lineText = System.getProperty("line.separator")?.let { result.text.replace(it, " ") }
-
-            val sentence = lineText.toString()
-            val label = labelName?.text.toString()
-            if (recordStatus == RecordStatus.START) {
-                recordList.add(arrayOf(label, sentence))
-            }
-
-            val text = "파일명 : ${fileName?.text.toString()}\n" +
-                    "index : ${recordList.size}\n" +
-                    "sentence : $sentence\n" +
-                    "label : $label\n" +
-                    "record status : $recordStatus\n"
-
-            textView?.text = text
+        val sortedBlocks = result.textBlocks.sortedByDescending { textBlock ->
+            textBlock.boundingBox?.area()
         }
+        sortedBlocks.forEachIndexed { index, textBlock ->
+            val rect = textBlock.boundingBox
+            if (rect != null) {
+                val area = (rect.bottom - rect.top) * (rect.right - rect.left)
+                Log.d("CameraXLive", "result > text[$index] : ${textBlock.text}")
+                Log.d("CameraXLive", "result > area[$index] : $area")
+            }
+        }
+
+        if (sortedBlocks.isNotEmpty()) {
+            recordSentence(sortedBlocks[0].text)
+        }
+
+//        if (result.text.isNotEmpty()) {
+//            val lineText = System.getProperty("line.separator")?.let { result.text.replace(it, " ") }
+//            recordSentence(lineText.toString())
+//        }
+    }
+
+    private fun recordSentence(sentence: String) {
+        val label = labelName?.text.toString()
+        if (recordStatus == RecordStatus.START) {
+            recordList.add(arrayOf(label, sentence))
+        }
+
+        val text = "파일명 : ${fileName?.text.toString()}\n" +
+                "index : ${recordList.size}\n" +
+                "sentence : $sentence\n" +
+                "label : $label\n" +
+                "record status : $recordStatus\n"
+
+        textView?.text = text
     }
 
     @SuppressLint("UnsafeOptInUsageError")
