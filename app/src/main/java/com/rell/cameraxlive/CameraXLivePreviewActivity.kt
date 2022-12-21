@@ -227,7 +227,7 @@ class CameraXLivePreviewActivity : AppCompatActivity() {
             val sentence = lineText.toString()
             val label = labelName?.text.toString()
             if (recordStatus == RecordStatus.START) {
-                recordList.add(arrayOf(sentence, label))
+                recordList.add(arrayOf(label, sentence))
             }
 
             val text = "파일명 : ${fileName?.text.toString()}\n" +
